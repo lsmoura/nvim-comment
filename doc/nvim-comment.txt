@@ -1,0 +1,96 @@
+*nvim-comment*  A simple way to add and remove comments from your codebase
+
+==============================================================================
+
+A simple way to add and remove comments from your codebase, without multi cursors
+
+comment                                                              *comment*
+
+                                                             *comment.setup()*
+`setup`({comments, trailing_space})
+
+Configure nvim-comment
+
+Parameters~
+{comments} `(comment.comments|nil)`
+Default values:
+>lua
+  {
+    c   = "//",
+    cpp = "//",
+    go  = "//",
+    h   = "//",
+    hpp = "//",
+    js  = "//",
+    jsx = "//",
+    lua = "--",
+    sh  = "#",
+    sql = "--",
+    ts  = "//",
+    tsx = "//",
+  }
+<
+
+{trailing_space} `(boolean|nil)`
+Default value: true
+
+                                                      *comment.comment_line()*
+`comment_line`()
+
+Comments the current line, even if it's already commented.
+
+                                                    *comment.uncomment_line()*
+`uncomment_line`()
+
+Uncomments the current line, if commented.
+
+                                                       *comment.toggle_line()*
+`toggle_line`()
+
+Detects if the current line is commented, comments it out if not, removes
+comment block if present.
+
+                                                     *comment.comment_block()*
+`comment_block`()
+
+Comments every line on the range selected by the current visual mode. Skips
+empty lines.
+
+The comment indentation level is determined by the line that has fewer
+trailing characters. If spaces and tabs are mixed, the result will be
+inconsistent.
+
+                                                   *comment.uncomment_block()*
+`uncomment_block`()
+
+Uncomments every line in the range selected by the current visual mode. Skips
+uncommented lines.
+
+                                                      *comment.toggle_block()*
+`toggle_block`()
+
+The toggle behaviour is determined by the first non-empty line, and
+conditionally calls `comment_block` or `uncomment_block`.
+
+                                                           *comment.comment()*
+`comment`()
+
+Detects if on normal or visual mode, then conditionally calls `comment_line`
+(on normal mode) or `comment_block` (on visual mode). Notifies an error if
+on any other mode.
+
+                                                         *comment.uncomment()*
+`uncomment`()
+
+Detects if on normal or visual mode, then conditionally calls `uncomment_line`
+(on normal mode) or `uncomment_block` (on visual mode). Notifies an error if
+on any other mode.
+
+                                                            *comment.toggle()*
+`toggle`()
+
+Detects if on normal or visual mode, then conditionally calls `toggle_line`
+(on normal mode) or `toggle_block` (on visual mode). Notifies an error if
+on any other mode.
+
+
