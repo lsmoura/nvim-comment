@@ -22,11 +22,13 @@ local default_comments = {
 ---@class comment.config
 ---@field comments table? comment style for each file extension
 ---@field trailing_space boolean? should try to add or remove a trailing space after the comment block
+---@field forward_line boolean? move to the next line after calling normal-mode functions
 
 ---@type comment.config
 local config = {
   comments = default_comments,
   trailing_space = true,
+  forward_line = true,
 }
 
 M.setup = function(opts)
@@ -152,6 +154,96 @@ local function toggle_line(line_no, comment)
   end
 end
 
+--- Moves cursor one line forward, if not at the end of the buffer
+local function forward_line()
+  local pos = vim.api.nvim_win_get_cursor(0)
+  local last_line = vim.api.nvim_buf_line_count(0)
+
+  local cur_line, cur_col = pos[1], pos[2]
+
+  if last_line < cur_line then
+    return
+  end
+
+  vim.api.nvim_win_set_cursor(0, { cur_line + 1, cur_col })
+end
+
+--- Adds the supplied comment statement on each line in the range, aligning to the
+--- leftmost indentation
+---@param start_line number
+---@param end_line number
+---@param comment string
+local function comment_range(start_line, end_line, comment)
+  if not comment or comment == '' then
+    vim.notify("cannot add empty comment statement")
+    return
+  end
+  if start_line > end_line then
+    start_line, end_line = end_line, start_line
+  end
+
+  local ident_level = get_min_indentation_level(start_line, end_line)
+  if ident_level < 0 then
+    -- no lines to comment
+    return
+  end
+
+  for cur_line = start_line, end_line do
+    insert_comment_at_position(cur_line, ident_level, comment)
+  end
+end
+
+--- Removes the comment statement from every line in the range, if present
+---@param start_line number
+---@param end_line number
+---@param comment string
+local function uncomment_range(start_line, end_line, comment)
+  if not comment or comment == '' then
+    vim.notify("empty comment statement")
+    return
+  end
+
+  if start_line > end_line then
+    start_line, end_line = end_line, start_line
+  end
+
+  for cur_line = start_line, end_line do
+    uncomment_line(cur_line, comment)
+  end
+end
+
+--- Toggle the comment statement from every line in the range. The first non-empty line in the
+--- range is used to define the behaviour of commenting or uncommenting the supplied range.
+---@param start_line number
+---@param end_line number
+---@param comment string
+local function toggle_range(start_line, end_line, comment)
+  if not comment or comment == '' then
+    vim.notify("empty comment statement")
+    return
+  end
+
+  if start_line > end_line then
+    start_line, end_line = end_line, start_line
+  end
+
+  local should_comment = false
+  local pattern = "^%s*" .. vim.pesc(comment)
+  for cur_line = start_line, end_line do
+    local line = vim.api.nvim_buf_get_lines(0, cur_line - 1, cur_line, false)[1]
+    if not line:match("^%s*$") then
+      should_comment = not line:match(pattern)
+      break
+    end
+  end
+
+  if should_comment then
+    comment_range(start_line, end_line, comment)
+  else
+    uncomment_range(start_line, end_line, comment)
+  end
+end
+
 ------ end of helper functions ------
 
 local function comment_current_line()
@@ -164,6 +256,10 @@ local function comment_current_line()
 
   local line_no = vim.api.nvim_win_get_cursor(0)
   comment_line(line_no[1], comment)
+
+  if config.forward_line then
+    forward_line()
+  end
 end
 
 local function uncomment_current_line()
@@ -176,6 +272,10 @@ local function uncomment_current_line()
 
   local line_no = vim.api.nvim_win_get_cursor(0)
   uncomment_line(line_no[1], comment)
+
+  if config.forward_line then
+    forward_line()
+  end
 end
 
 local function toggle_current_line()
@@ -188,6 +288,11 @@ local function toggle_current_line()
 
   local line_no = vim.api.nvim_win_get_cursor(0)
   toggle_line(line_no[1], comment)
+
+  if config.forward_line then
+    print("forward!")
+    forward_line()
+  end
 end
 
 
@@ -205,19 +310,7 @@ local function comment_block()
   local start_line = start_pos[2]
   local end_line = end_pos[2]
 
-  if start_line > end_line then
-    start_line, end_line = end_line, start_line
-  end
-
-  local ident_level = get_min_indentation_level(start_line, end_line)
-  if ident_level < 0 then
-     -- no lines to comment
-    return
-  end
-
-  for cur_line = start_line, end_line do
-    insert_comment_at_position(cur_line, ident_level, comment)
-  end
+  comment_range(start_line, end_line, comment)
 end
 
 local function uncomment_block()
@@ -234,13 +327,7 @@ local function uncomment_block()
   local start_line = start_pos[2]
   local end_line = end_pos[2]
 
-  if start_line > end_line then
-    start_line, end_line = end_line, start_line
-  end
-
-  for cur_line = start_line, end_line do
-    uncomment_line(cur_line, comment)
-  end
+  uncomment_range(start_line, end_line, comment)
 end
 
 local function toggle_block()
@@ -287,9 +374,29 @@ end
 
 local function comment()
   local mode = vim.api.nvim_get_mode().mode
+  local count = vim.v.count
+  if count < 1 then
+    count = 1
+  end
 
   if mode == "n" then
-    comment_current_line()
+    if count == 1 then
+      comment_current_line()
+    else
+      -- TODO: move this block to an external function
+      local ft = vim.bo.filetype
+      local comment = config.comments[ft]
+      if not comment then
+        vim.notify("unsupported file type: " .. ft)
+        return
+      end
+
+      local current_pos = vim.api.nvim_win_get_cursor(0)
+      local start_line = current_pos[1]
+      local end_line = start_line + count - 1
+
+      comment_range(start_line, end_line, comment)
+    end
   elseif mode == "v" or mode == "V" then
     comment_block()
   else
@@ -300,9 +407,29 @@ end
 
 local function uncomment()
   local mode = vim.api.nvim_get_mode().mode
+  local count = vim.v.count
+  if count < 1 then
+    count = 1
+  end
 
   if mode == "n" then
-    uncomment_current_line()
+    if count == 1 then
+      uncomment_current_line()
+    else
+      -- TODO: move this block to an external function
+      local ft = vim.bo.filetype
+      local comment = config.comments[ft]
+      if not comment then
+        vim.notify("unsupported file type: " .. ft)
+        return
+      end
+
+      local current_pos = vim.api.nvim_win_get_cursor(0)
+      local start_line = current_pos[1]
+      local end_line = start_line + count - 1
+
+      uncomment_range(start_line, end_line, comment)
+    end
   elseif mode == "v" or mode == "V" then
     uncomment_block()
   else
@@ -317,9 +444,29 @@ end
 --- should be added or removed
 local function toggle()
   local mode = vim.api.nvim_get_mode().mode
+  local count = vim.v.count
+  if count < 1 then
+    count = 1
+  end
 
   if mode == "n" then
-    toggle_current_line()
+    if count == 1 then
+      toggle_current_line()
+    else
+      -- TODO: find a better place to put this block in
+      local ft = vim.bo.filetype
+      local comment = config.comments[ft]
+      if not comment then
+        vim.notify("unsupported file type: " .. ft)
+        return
+      end
+
+      local current_pos = vim.api.nvim_win_get_cursor(0)
+      local start_line = current_pos[1]
+      local end_line = start_line + count - 1
+
+      toggle_range(start_line, end_line, comment)
+    end
   elseif mode == "v" or mode == "V" then
     toggle_block()
   else

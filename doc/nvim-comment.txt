@@ -7,7 +7,7 @@ A simple way to add and remove comments from your codebase, without multi cursor
 comment                                                              *comment*
 
                                                              *comment.setup()*
-`setup`({comments, trailing_space})
+`setup`({comments, trailing_space, forward_line})
 
 Configure nvim-comment
 
@@ -32,6 +32,9 @@ Default values:
 <
 
 {trailing_space} `(boolean|nil)`
+Default value: true
+
+{foward_line} `(boolean|nil)`
 Default value: true
 
                                                       *comment.comment_line()*
